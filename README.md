@@ -14,6 +14,7 @@ https://www.molex.com/en-us/products/part-detail/15975101
 
 To setup the cable connecting your laptop to the slave BMS, we will use this male connector and follow the following schematic:
 ![PC-BMS cable schematic](img/teslams_bms_serial_cable.drawio.png "PC-BMS cable schematic")
+Warning: Do not forget to set up the output voltage to 3V3 on the FT232 USB UART board.
 
 Once you have setup such a cable, you can plug the USB side to your PC and the Molex side to the slave BMS before following the "**SW Getting Started**" section to start interacting with your target.
 
