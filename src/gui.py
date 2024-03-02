@@ -1,5 +1,9 @@
+import logging
+import os
 import re
 import tkinter as tk
+
+from pathlib import Path
 
 from serial_interface import (
     BROADCAST_ADDR,
@@ -8,14 +12,21 @@ from serial_interface import (
     reset_slave,
     get_slave_id,
     set_slave_id,
+    read_adc_meas,
+    full_dump,
 )
 from tkinter import messagebox
 
 
 COM_PORT_PATTERN = r'^COM\d+$'
 
-ALERT_REG_IMG = "../img/alert_status_register.png"
-FAULT_REG_IMG = "../img/fault_status_register.png"
+ROOT_FOLDER = Path(__file__).parent.parent.resolve()
+
+ALERT_REG_IMG = ROOT_FOLDER / "img" / "alert_status_register.png"
+FAULT_REG_IMG = ROOT_FOLDER / "img" / "fault_status_register.png"
+
+LOG_FOLDER = ROOT_FOLDER / "log"
+LOG_FILE = LOG_FOLDER / "log.txt"
 
 def check_com_port_format(comport_string):
     if re.match(COM_PORT_PATTERN, comport_string):
@@ -30,10 +41,10 @@ class BMSMonitorApp:
         self.main.title("Slave BMS Monitor - Tesla Model S ph.1, 2012/2016")
 
         self.serial_con = None
-
         self.com_port_sel = None
         self.com_port_input = None
-        
+        self.con_status = False
+
         self.id = None
         self.id_sel = None
         self.id_input = None
@@ -71,6 +82,16 @@ class BMSMonitorApp:
         self.create_alerts_and_faults_frame(main)
         # Config locks
         self.create_locks_frame(main)
+
+        # Logging config
+        if not os.path.isdir(LOG_FOLDER):
+            os.mkdir(LOG_FOLDER)
+        self.logger = logging.getLogger(__name__)
+        self.logger.setLevel(logging.DEBUG)
+        f_handler = logging.FileHandler(LOG_FILE)
+        f_format = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        f_handler.setFormatter(f_format)
+        self.logger.addHandler(f_handler)
 
     def create_com_reset_id_frame(self, main):
         # COM_PORT, Reset, ID
@@ -124,7 +145,7 @@ class BMSMonitorApp:
 
         tk.Label(voltages_frame, text="Voltages", width=VOLT_ARRAY_WIDTH, relief='raised').grid(row=0, column=0)
 
-        tk.Label(voltages_frame, text="V", width=VOLT_ARRAY_WIDTH, relief='raised').grid(row=0, column=1)
+        tk.Label(voltages_frame, text="mV", width=VOLT_ARRAY_WIDTH, relief='raised').grid(row=0, column=1)
 
         tk.Label(voltages_frame, text="Vbatt", width=VOLT_ARRAY_WIDTH, relief='groove').grid(row=1, column=0)
         self.vbatt = tk.Label(voltages_frame, text="?", width=VOLT_ARRAY_WIDTH, relief='groove')
@@ -183,10 +204,10 @@ class BMSMonitorApp:
         self.uv_thr_input.grid(row=1, column=1)
         self.uv_thr_input.insert(0, "Enter UV_THR")
 
-        self.update_ov_thr_button = tk.Button(v_thr_frame, text="Set", command=self.update_ov_thr, state=tk.DISABLED)
-        self.update_ov_thr_button.grid(row=0, column=3)
-        self.update_uv_thr_button = tk.Button(v_thr_frame, text="Set", command=self.update_uv_thr, state=tk.DISABLED)
-        self.update_uv_thr_button.grid(row=1, column=3)
+        self.set_ov_thr_button = tk.Button(v_thr_frame, text="Set", command=self.set_ov_thr, state=tk.DISABLED)
+        self.set_ov_thr_button.grid(row=0, column=3)
+        self.set_uv_thr_button = tk.Button(v_thr_frame, text="Set", command=self.set_uv_thr, state=tk.DISABLED)
+        self.set_uv_thr_button.grid(row=1, column=3)
 
         # Temperature thresholds
         t_thr_frame = tk.Frame(secu_thresholds_frame, width=20, height=20, bg='paleturquoise3')
@@ -204,10 +225,10 @@ class BMSMonitorApp:
         self.ut_thr_input.grid(row=1, column=1)
         self.ut_thr_input.insert(0, "Enter UT_THR")
 
-        self.update_ot_thr_button = tk.Button(t_thr_frame, text="Set", command=self.update_ot_thr, state=tk.DISABLED)
-        self.update_ot_thr_button.grid(row=0, column=3)
-        self.update_ut_thr_button = tk.Button(t_thr_frame, text="Set", command=self.update_ut_thr, state=tk.DISABLED)
-        self.update_ut_thr_button.grid(row=1, column=3)
+        self.set_ot_thr_button = tk.Button(t_thr_frame, text="Set", command=self.set_ot_thr, state=tk.DISABLED)
+        self.set_ot_thr_button.grid(row=0, column=3)
+        self.set_ut_thr_button = tk.Button(t_thr_frame, text="Set", command=self.set_ut_thr, state=tk.DISABLED)
+        self.set_ut_thr_button.grid(row=1, column=3)
 
     def create_alerts_and_faults_frame(self, main):
         # Alerts and Faults status
@@ -375,6 +396,9 @@ class BMSMonitorApp:
             print("Is reset locked ?: ", self.is_reset_locked)
 
     def reset_board(self):
+        if not self.con_status:
+            print("No board connected")
+            return
         print(self.is_reset_locked)
         print(self.is_all_locked)
         print(self.is_reset_locked or self.is_all_locked)
@@ -406,8 +430,9 @@ class BMSMonitorApp:
         print("Show faults info")
 
     def disco_port(self):
-        if self.serial_con==None:
+        if not self.con_status:
             messagebox.showwarning("WARNING", f"Nothing connected actually.")
+            self.con_status = False
             return False
         if not disco_serial_port(self.serial_con):
             messagebox.showwarning("WARNING", f"Failed to disconnect from {self.serial_con.port}.")
@@ -416,24 +441,47 @@ class BMSMonitorApp:
         # Reset the board ID value
         self.id = ""
         self.id_sel.config(text=f"ID: ?")
+        self.con_status = False
         return True
 
     def set_port(self):
+        if self.con_status:
+            messagebox.showwarning("WARNING", f"One board is already connected, disconnect first.")
+            return False
         port_name = self.com_port_input.get()
         if not check_com_port_format(port_name):
             messagebox.showwarning("WARNING", f"Bad COM PORT format entered ({port_name}), should be COM[num].")
+            self.con_status = False
             return False
         self.serial_con = con_serial_port(port_name)
         if self.serial_con==None:
             messagebox.showwarning("WARNING", f"Connection to {port_name} failed.")
+            self.con_status = False
             return False
-        self.com_port_sel.config(text=f"COM_PORT: {port_name} (CON)", fg="chartreuse4", font=("Helvetica", 10, "bold"))
         # Get the board ID to be able to address it
-        self.id = get_slave_id(ser=self.serial_con, id=BROADCAST_ADDR)
+        try:
+            self.id = get_slave_id(ser=self.serial_con, id=BROADCAST_ADDR)
+        except:
+            messagebox.showwarning("WARNING", f"Issue heppened when trying to communicate with a BMS at {port_name} (e.g: no answer when reading ID).")
+            disco_serial_port(self.serial_con)
+            return False  
         self.id_sel.config(text=f"ID: {self.id}")
+        self.con_status = True
+        self.com_port_sel.config(text=f"COM_PORT: {port_name} (CON)", fg="chartreuse4", font=("Helvetica", 10, "bold"))
+        
+        state_snapshot = ""
+        for i, byte in enumerate(full_dump(ser=self.serial_con, id=self.id)):
+            state_snapshot = state_snapshot + (f"@{i}:{hex(byte)} " if byte>15 else f"@{i}:{hex(byte)}  ")
+        self.logger.info("Connection to %s, memory dump: %s", port_name, state_snapshot)
+        # Update two times to let readings stabilizing
+        self.update_meas()
+        self.update_meas()
         return True
 
     def set_id(self):
+        if not self.con_status:
+            print("No board connected")
+            return
         id_in = int(self.id_input.get())
         if self.is_id_locked or self.is_all_locked:
             print("WARNING: ID locked")
@@ -445,35 +493,56 @@ class BMSMonitorApp:
                 messagebox.showwarning("WARNING", f"Setting ID to {id_in} failed.")
 
     def update_meas(self):
-        self.vbatt.config(text='ok')
-        for vcell in self.vcells:
-            vcell.config(text='ok')
-        for temp in self.temps:
-            temp.config(text='ok')
+        if not self.con_status:
+            print("No board connected")
+            return
+        print("Update V & T")
+        # meas_buff = [GPAI, Vcell1, Vcell2, Vcell3, Vcell4, Vcell5, Vcell6, Temp1, Temp2]
+        meas_buff = read_adc_meas(ser=self.serial_con, id=self.id)
+        self.vbatt.config(text=meas_buff[0])
+        for i, vcell in enumerate(self.vcells):
+            vcell.config(text=meas_buff[1+i])
+        for i, temp in enumerate(self.temps):
+            temp.config(text=meas_buff[7+i])
 
-    def update_ov_thr(self):
+    def set_ov_thr(self):
+        if not self.con_status:
+            print("No board connected")
+            return
         if self.is_reset_locked or self.is_all_locked:
-            print("WARNING: thresholds update locked")
+            print("WARNING: thresholds set locked")
         else:
             print("Set OVT done")
 
-    def update_uv_thr(self):
+    def set_uv_thr(self):
+        if not self.con_status:
+            print("No board connected")
+            return
         if self.is_reset_locked or self.is_all_locked:
-            print("WARNING: thresholds update locked")
+            print("WARNING: thresholds set locked")
         else:
             print("Set UVT done")
 
-    def update_ot_thr(self):
+    def set_ot_thr(self):
+        if not self.con_status:
+            print("No board connected")
+            return
         if self.is_reset_locked or self.is_all_locked:
-            print("WARNING: thresholds update locked")
+            print("WARNING: thresholds set locked")
         else:
             print("Set OTT done")
 
-    def update_ut_thr(self):
+    def set_ut_thr(self):
+        if not self.con_status:
+            print("No board connected")
+            return
         if self.is_reset_locked or self.is_all_locked:
-            print("WARNING: thresholds update locked")
+            print("WARNING: thresholds set locked")
         else:
             print("Set UTT done")
 
     def update_alerts_and_faults(self):
+        if not self.con_status:
+            print("No board connected")
+            return
         print("update Alerts & Faults")
