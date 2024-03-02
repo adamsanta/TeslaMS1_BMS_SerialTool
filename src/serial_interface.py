@@ -1,10 +1,11 @@
 import crcmod
+import math
 import serial
 
 VERBOSE = True
 
 SERIAL_BAUDRATE = 612500
-SERIAL_TIMEOUT = 1
+SERIAL_TIMEOUT = 0.05
 
 BROADCAST_ADDR = 0x3F
 RESET_REG_ADDR = 0x3C
@@ -48,7 +49,6 @@ def disco_serial_port(serial_con):
         return False
 
 def crc8_func(byte_array):
-    # print(hex(crc8_func(bytearray([0x01, 0x61]))))
     return crcmod.mkCrcFun(0x107, initCrc=0, rev=False)(byte_array)
 
 def print_packet(tx_rx, bytes):
@@ -93,9 +93,15 @@ def write_bq76(ser, id, reg_addr, val):
 
     return ans
 
+def full_dump(*, ser, id):
+    rx_data = read_bq76(ser, id, 0x00, ADDR_RANGE_FULL_SIZE)
+    _print(f"Full dump done for slave {id}.\n")
+    return rx_data
+
 def reset_slave(*, ser, id):
     rx_data = write_bq76(ser, id, RESET_REG_ADDR, RESET_MAGIC_CODE)
     _print(f"Reset slave {id}.\n")
+    return rx_data
 
 def get_slave_id(*, ser, id):
     rx_data = read_bq76(ser, id, 0x3b, 0x1)
@@ -116,5 +122,68 @@ def set_slave_id(*, ser, old_id, new_id):
         return -1
     if rx_data[2]==(0x80|new_id):
         _print(f"ID update OK: {old_id}->{new_id}.\n")
+        return 0
     else:
         _print(f"ID update NOK: {old_id}-/->{new_id}.\n")
+        return -1
+
+def start_adc_meas(*, ser, id):
+    rx_data = write_bq76(ser, id, ADC_START_ADDR, 0x1)
+    rx_data = read_bq76(ser, id, ADC_START_ADDR, 0x1)
+    meas_ongoing = rx_data[3]
+    # Wait for end of measurement
+    while meas_ongoing==0x1:
+        rx_data = read_bq76(ser, id, ADC_START_ADDR, 0x1)
+        meas_ongoing = rx_data[3]
+    _print(f"ADC meas started for slave {id}.\n")
+
+def read_adc_meas(*, ser, id):
+    # Store actual registers content to set it back after readings
+    rx_data = read_bq76(ser, id, ADC_CONFIG_ADDR, 0x1)
+    adc_config_reg_backup = rx_data[3]
+    rx_data = read_bq76(ser, id, IO_CONFIG_ADDR, 0x1)
+    io_config_reg_backup = rx_data[3]
+
+    # Configure ADC for full measurement
+    write_bq76(ser, id, ADC_CONFIG_ADDR, adc_config_reg_backup|0x3D)
+    # Configure TS1 and TS2 pins for temperature measurement
+    write_bq76(ser, id, IO_CONFIG_ADDR, io_config_reg_backup|0x03)
+    _print(f"Full ADC meas (GPAI, TS1, TS2, C1-2-3-4-5-6) configured for slave {id}.\n")
+
+    start_adc_meas(ser=ser, id=id)
+
+    # Voltages returned are in mV. See sections 7.3.1.3 to 7.3.1.5 from the TI BQ76 datasheet.
+    rx_data = read_bq76(ser, id, ADC_RES_ADDR, ADC_NB_MEAS)
+    gpai = rx_data[3]<<8 | rx_data[4]
+    gpai = round(gpai * 33333 /16383, 2)
+    vcell1 = rx_data[5]<<8 | rx_data[6]
+    vcell1 = round(vcell1 *6250 / 16383, 2)
+    vcell2 = rx_data[7]<<8 | rx_data[8]
+    vcell2 = round(vcell2 *6250 / 16383, 2)
+    vcell3 = rx_data[9]<<8 | rx_data[10]
+    vcell3 = round(vcell3 *6250 / 16383, 2)
+    vcell4 = rx_data[11]<<8 | rx_data[12]
+    vcell4 = round(vcell4 *6250 / 16383, 2)
+    vcell5 = rx_data[13]<<8 | rx_data[14]
+    vcell5 = round(vcell5 *6250 / 16383, 2)
+    vcell6 = rx_data[15]<<8 | rx_data[16]
+    vcell6 = round(vcell6 *6250 / 16383, 2)
+    # Temperatures are operated using the steinhart/hart equation
+    # See the readModuleValues function at https://github.com/collin80/TeslaBMS/blob/master/BMSModule.cpp#L88
+    temp1 = rx_data[17]<<8 | rx_data[18]
+    temp1 = (temp1 + 2) / 33046
+    temp1 = ((1.78 / temp1) - 3.57) * 1000
+    temp1 = 1.0 / (0.0007610373573 + (0.0002728524832 * math.log(temp1)) + (pow(math.log(temp1), 3) * 0.0000001022822735))
+    temp1 = round(temp1 - 273.15, 3)
+    temp2 = rx_data[19]<<8 | rx_data[20]
+    temp2 = (temp2 + 9) / 33068
+    temp2 = ((1.78 / temp2) - 3.57) * 1000
+    temp2 = 1.0 / (0.0007610373573 + (0.0002728524832 * math.log(temp2)) + (pow(math.log(temp2), 3) * 0.0000001022822735))
+    temp2 = round(temp2 - 273.15, 3)
+    _print(gpai, vcell1, vcell2, vcell3, vcell4, vcell5, vcell6, temp1, temp2, "\n")
+
+    # Setting back registers' content before returning
+    write_bq76(ser, 0, ADC_CONFIG_ADDR, adc_config_reg_backup)
+    write_bq76(ser, 0, IO_CONFIG_ADDR, io_config_reg_backup)
+
+    return gpai, vcell1, vcell2, vcell3, vcell4, vcell5, vcell6, temp1, temp2
