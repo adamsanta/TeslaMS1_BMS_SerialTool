@@ -9,6 +9,9 @@ __pycache__/
 # venv related folders
 *venv/
 
+# log folder
+log/
+
 # Distribution / packaging
 .Python
 build/
