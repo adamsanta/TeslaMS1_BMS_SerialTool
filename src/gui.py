@@ -14,6 +14,14 @@ from serial_interface import (
     set_slave_id,
     read_adc_meas,
     full_dump,
+    read_alerts,
+    read_faults,
+    read_ov_cells,
+    read_uv_cells,
+    # get_ov_thr,
+    # get_uv_thr,
+    # set_ov_thr,
+    # set_uv_thr,
 )
 from tkinter import messagebox
 
@@ -63,6 +71,10 @@ class BMSMonitorApp:
 
         self.alerts_list = ["~ID_assigned", "Gp3_valid", "OTP_ECC", "ALERT_SIG", "Too_hot", "Was_sleeping", "OVT1", "OVT2"]
         self.faults_list = ["_", "_", "INTERN_ISSUE", "FAULT_SIG", "PO_RESET", "CRC_ERR", ">UV_CELLS", ">OV_CELLS"]
+        self.alerts_val = []
+        self.faults_val = []
+        self.ov_cells_val = []
+        self.uv_cells_val = []
 
         self.is_all_locked = True
         self.is_id_locked = True
@@ -243,9 +255,12 @@ class BMSMonitorApp:
         tk.Label(alerts_frame, text="Alert", width=ALERTS_ARRAY_WIDTH, relief='raised').grid(row=0, column=0)
         tk.Label(alerts_frame, text="State", width=ALERTS_ARRAY_WIDTH, relief='raised').grid(row=1, column=0)
 
+        self.alers_val = []
         for i, alert in enumerate(self.alerts_list):
             tk.Label(alerts_frame, text=alert, width=ALERTS_ARRAY_WIDTH, relief='groove').grid(row=0, column=1+i)
-            tk.Label(alerts_frame, text="?", width=ALERTS_ARRAY_WIDTH, relief='groove').grid(row=1, column=1+i)
+            alert_val = tk.Label(alerts_frame, text="?", width=ALERTS_ARRAY_WIDTH, relief='groove')
+            alert_val.grid(row=1, column=1+i)
+            self.alerts_val.append(alert_val)
 
         # Faults
         FAULTS_ARRAY_WIDTH = 10
@@ -255,9 +270,12 @@ class BMSMonitorApp:
         tk.Label(faults_frame, text="Fault", width=FAULTS_ARRAY_WIDTH, relief='raised').grid(row=0, column=0)
         tk.Label(faults_frame, text="State", width=FAULTS_ARRAY_WIDTH, relief='raised').grid(row=1, column=0)
 
+        self.faults_val = []
         for i, alert in enumerate(self.faults_list):
             tk.Label(faults_frame, text=alert, width=FAULTS_ARRAY_WIDTH, relief='groove').grid(row=0, column=1+i)
-            tk.Label(faults_frame, text="?", width=FAULTS_ARRAY_WIDTH, relief='groove').grid(row=1, column=1+i)
+            fault_val = tk.Label(faults_frame, text=("?" if i not in [0,1] else "_"), width=FAULTS_ARRAY_WIDTH, relief='groove')
+            fault_val.grid(row=1, column=1+i)
+            self.faults_val.append(fault_val)
 
         # OV & UV cells
         OVUV_CELLS_ARRAY_WIDTH = 10
@@ -268,10 +286,16 @@ class BMSMonitorApp:
         tk.Label(ovuv_cells_frame, text="V>OVth?", width=FAULTS_ARRAY_WIDTH, relief='raised').grid(row=1, column=0)
         tk.Label(ovuv_cells_frame, text="V<UVth?", width=FAULTS_ARRAY_WIDTH, relief='raised').grid(row=2, column=0)
 
+        self.ov_cells_val = []
+        self.uv_cells_val = []
         for i in range(1,7):
             tk.Label(ovuv_cells_frame, text=i, width=FAULTS_ARRAY_WIDTH, relief='raised').grid(row=0, column=1+i)
-            tk.Label(ovuv_cells_frame, text="?", width=FAULTS_ARRAY_WIDTH, relief='groove').grid(row=1, column=1+i)
-            tk.Label(ovuv_cells_frame, text="?", width=FAULTS_ARRAY_WIDTH, relief='groove').grid(row=2, column=1+i)
+            ov_cell_val = tk.Label(ovuv_cells_frame, text="?", width=FAULTS_ARRAY_WIDTH, relief='groove')
+            ov_cell_val.grid(row=1, column=1+i)
+            uv_cell_val = tk.Label(ovuv_cells_frame, text="?", width=FAULTS_ARRAY_WIDTH, relief='groove')
+            uv_cell_val.grid(row=2, column=1+i)
+            self.ov_cells_val.append(ov_cell_val)
+            self.uv_cells_val.append(uv_cell_val)
 
         # Alerts and faults update and info buttons
         alerts_and_faults_update_frame = tk.Frame(alerts_and_faults_frame, width=20, height=20, bg='paleturquoise3')
@@ -473,9 +497,11 @@ class BMSMonitorApp:
         for i, byte in enumerate(full_dump(ser=self.serial_con, id=self.id)):
             state_snapshot = state_snapshot + (f"@{i}:{hex(byte)} " if byte>15 else f"@{i}:{hex(byte)}  ")
         self.logger.info("Connection to %s, memory dump: %s", port_name, state_snapshot)
-        # Update two times to let readings stabilizing
+        # Update ADC meas two times to let readings stabilizing
         self.update_meas()
         self.update_meas()
+        # Update alerts and faults
+        self.update_alerts_and_faults()
         return True
 
     def set_id(self):
@@ -546,3 +572,37 @@ class BMSMonitorApp:
             print("No board connected")
             return
         print("update Alerts & Faults")
+        alerts = read_alerts(ser=self.serial_con, id=self.id)
+        faults = read_faults(ser=self.serial_con, id=self.id)
+        ov_cells = read_ov_cells(ser=self.serial_con, id=self.id)
+        uv_cells = read_uv_cells(ser=self.serial_con, id=self.id)
+        
+        self.alerts_val[0].config(text = (alerts & 0x80) >> 7)
+        self.alerts_val[1].config(text = (alerts & 0x40) >> 6)
+        self.alerts_val[2].config(text = (alerts & 0x20) >> 5)
+        self.alerts_val[3].config(text = (alerts & 0x10) >> 4)
+        self.alerts_val[4].config(text = (alerts & 0x08) >> 3)
+        self.alerts_val[5].config(text = (alerts & 0x04) >> 2)
+        self.alerts_val[6].config(text = (alerts & 0x02) >> 1)
+        self.alerts_val[7].config(text = alerts & 0x01)
+
+        self.faults_val[2].config(text = (faults & 0x20) >> 5)
+        self.faults_val[3].config(text = (faults & 0x10) >> 4)
+        self.faults_val[4].config(text = (faults & 0x08) >> 3)
+        self.faults_val[5].config(text = (faults & 0x04) >> 2)
+        self.faults_val[6].config(text = (faults & 0x02) >> 1)
+        self.faults_val[7].config(text = faults & 0x01)
+
+        self.ov_cells_val[0].config(text = ov_cells & 0x01)
+        self.ov_cells_val[1].config(text = (ov_cells & 0x02) >> 1)
+        self.ov_cells_val[2].config(text = (ov_cells & 0x04) >> 2)
+        self.ov_cells_val[3].config(text = (ov_cells & 0x08) >> 3)
+        self.ov_cells_val[4].config(text = (ov_cells & 0x10) >> 4)
+        self.ov_cells_val[5].config(text = (ov_cells & 0x20) >> 5)
+
+        self.uv_cells_val[0].config(text = uv_cells & 0x01)
+        self.uv_cells_val[1].config(text = (uv_cells & 0x02) >> 1)
+        self.uv_cells_val[2].config(text = (uv_cells & 0x04) >> 2)
+        self.uv_cells_val[3].config(text = (uv_cells & 0x08) >> 3)
+        self.uv_cells_val[4].config(text = (uv_cells & 0x10) >> 4)
+        self.uv_cells_val[5].config(text = (uv_cells & 0x20) >> 5)

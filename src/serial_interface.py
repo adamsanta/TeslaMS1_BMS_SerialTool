@@ -20,6 +20,10 @@ ADC_CONFIG_ADDR = 0x30
 ADC_RES_ADDR = 0x01
 ADC_NB_MEAS = 9*2 # 9 * 2 bytes measurements
 ADDR_RANGE_FULL_SIZE = 0x4C
+ALERT_STATUS_ADDR = 0x20
+FAULT_STATUS_ADDR = 0x21
+OV_CELLS_ADDR = 0x22
+UV_CELLS_ADDR = 0x23
 
 def _print(*args, **kwargs):
     if VERBOSE:
@@ -96,7 +100,7 @@ def write_bq76(ser, id, reg_addr, val):
 def full_dump(*, ser, id):
     rx_data = read_bq76(ser, id, 0x00, ADDR_RANGE_FULL_SIZE)
     _print(f"Full dump done for slave {id}.\n")
-    return rx_data
+    return rx_data[3:]
 
 def reset_slave(*, ser, id):
     rx_data = write_bq76(ser, id, RESET_REG_ADDR, RESET_MAGIC_CODE)
@@ -187,3 +191,83 @@ def read_adc_meas(*, ser, id):
     write_bq76(ser, 0, IO_CONFIG_ADDR, io_config_reg_backup)
 
     return gpai, vcell1, vcell2, vcell3, vcell4, vcell5, vcell6, temp1, temp2
+
+def read_alerts(*, ser, id):
+    rx_data = read_bq76(ser, id, ALERT_STATUS_ADDR, 0x1)
+    return rx_data[3]
+
+def read_faults(*, ser, id):
+    rx_data = read_bq76(ser, id, FAULT_STATUS_ADDR, 0x1)
+    return rx_data[3]
+
+def read_ov_cells(*, ser, id):
+    rx_data = read_bq76(ser, id, OV_CELLS_ADDR, 0x1)
+    return rx_data[3]
+
+def read_uv_cells(*, ser, id):
+    rx_data = read_bq76(ser, id, UV_CELLS_ADDR, 0x1)
+    return rx_data[3]
+
+# def get_ov_thr(*, ser, id):
+#     rx_data = read_bq76(ser, id, OV_REG_ADDR, 0x1)
+#     if rx_data == None:
+#         return -1
+#     if rx_data[3]&0x80:
+#         _print(f"Overvoltage protection disabled for slave #{id}.\n")
+#         return -1
+#     else:
+#         ov_thr = 2 + int(rx_data[3])*0.050
+#         _print(f"Overvoltage threshold (slave #{id})= {ov_thr} V.\n")
+#         return ov_thr
+
+# def set_ov_thr(*, ser, id, new_ov_thr):
+#     # Unlock protected registers
+#     rx_data = read_bq76(ser, id, SHDW_REG_ADDR, 0x1)
+#     shdw_reg_backup = rx_data[3]
+#     rx_data = write_bq76(ser, id, SHDW_REG_ADDR, shdw_reg_backup|SHDW_UNLOCK_MAGIC_CODE)
+#     _print(f"Unlock protected registers for slave {id}.\n")  
+
+#     rx_data = write_bq76(ser, id, OV_REG_ADDR, new_ov_thr)
+#     if len(rx_data)<3:
+#         _print(f"ERROR: set_ov_thr({new_ov_thr}) for slave #{id} failed.\n")
+#         return -1
+#     if rx_data[2]==new_ov_thr:
+#         _print(f"OV_THR update OK: {new_ov_thr}=={rx_data[2]}.\n")
+#     else:
+#         _print(f"OV_THR update NOK: {new_ov_thr}!={rx_data[2]}.\n")
+
+#     # Set back protected registers lock state
+#     rx_data = write_bq76(ser, id, SHDW_REG_ADDR, shdw_reg_backup)
+#     _print(f"Set back protected registers lock state for slave {id}.\n")    
+
+# def get_uv_thr(*, ser, id):
+#     rx_data = read_bq76(ser, id, UV_REG_ADDR, 0x1)
+#     if rx_data == None:
+#         return -1    
+#     if rx_data[3]&0x80:
+#         _print(f"Undervoltage protection disabled for slave #{id}.\n")
+#         return -1
+#     else:
+#         uv_thr = 0.7 + int(rx_data[3])*0.1
+#         _print(f"Undervoltage threshold (slave #{id})= {uv_thr} V.\n")
+#         return uv_thr
+    
+# def set_uv_thr(*, ser, id, new_uv_thr):
+#     # Unlock protected registers
+#     rx_data = read_bq76(ser, id, SHDW_REG_ADDR, 0x1)
+#     shdw_reg_backup = rx_data[3]
+#     rx_data = write_bq76(ser, id, SHDW_REG_ADDR, shdw_reg_backup|SHDW_UNLOCK_MAGIC_CODE)
+#     _print(f"Unlock protected registers for slave {id}.\n") 
+
+#     rx_data = write_bq76(ser, id, UV_REG_ADDR, new_uv_thr)
+#     if len(rx_data)<3:
+#         _print(f"ERROR: set_uv_thr({new_uv_thr}) for slave #{id} failed.\n")
+#         return -1
+#     if rx_data[2]==new_uv_thr:
+#         _print(f"UV_THR update OK: {new_uv_thr}=={rx_data[2]}.\n")
+#     else:
+#         _print(f"UV_THR update NOK: {new_uv_thr}!={rx_data[2]}.\n")
+
+#     # Set back protected registers lock state
+#     rx_data = write_bq76(ser, id, SHDW_REG_ADDR, shdw_reg_backup)
+#     _print(f"Set back protected registers lock state for slave {id}.\n")
