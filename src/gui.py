@@ -466,6 +466,13 @@ class BMSMonitorApp:
         # Board ID should have got back to 0
         self.id = get_slave_id(ser=self.serial_con, id=BROADCAST_ADDR)
         self.id_sel.config(text=f"ID: {self.id}")
+        # Update ADC meas two times to let readings stabilizing
+        self.update_meas()
+        self.update_meas()
+        # Update alerts and faults
+        self.update_alerts_and_faults()
+        # Update thresholds reading
+        self.update_secu_thr()
 
     def show_ot_thr_info(self):
         info_window = tk.Toplevel(self.main)
