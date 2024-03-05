@@ -18,10 +18,11 @@ from serial_interface import (
     read_faults,
     read_ov_cells,
     read_uv_cells,
-    # get_ov_thr,
-    # get_uv_thr,
-    # set_ov_thr,
-    # set_uv_thr,
+    get_ov_thr,
+    get_uv_thr,
+    set_ov_thr,
+    set_uv_thr,
+    get_ot_thr,
 )
 from tkinter import messagebox
 
@@ -32,9 +33,25 @@ ROOT_FOLDER = Path(__file__).parent.parent.resolve()
 
 ALERT_REG_IMG = ROOT_FOLDER / "img" / "alert_status_register.png"
 FAULT_REG_IMG = ROOT_FOLDER / "img" / "fault_status_register.png"
+OT_THR_TABLE_IMG = ROOT_FOLDER / "img" / "ot_thr_meaning.png"
 
 LOG_FOLDER = ROOT_FOLDER / "log"
 LOG_FILE = LOG_FOLDER / "log.txt"
+
+OT_THR_TO_CELCIUS_LU_TABLE = {
+    0: "dis",
+    1: "40°C",
+    2: "45°C",
+    3: "50°C",
+    4: "55°C",
+    5: "60°C",
+    6: "65°C",
+    7: "70°C",
+    8: "75°C",
+    9: "80°C",
+    10: "85°C",
+    11: "90°C",
+}
 
 def check_com_port_format(comport_string):
     if re.match(COM_PORT_PATTERN, comport_string):
@@ -64,13 +81,21 @@ class BMSMonitorApp:
         self.vcells = []
         self.temps = []
 
-        self.update_ov_thr_button = None
-        self.update_uv_thr_button = None
-        self.update_ot_thr_button = None
-        self.update_ut_thr_button = None
+        self.set_ov_thr_button = None
+        self.set_uv_thr_button = None
+        self.ov_thr_sel = None
+        self.uv_thr_sel = None
+        self.ov_thr_input = None
+        self.uv_thr_input = None
+        self.set_ot1_thr_button = None
+        self.set_ot2_thr_button = None
+        self.ot1_thr_sel = None
+        self.ot2_thr_sel = None
+        self.ot1_thr_input = None
+        self.ot2_thr_input = None
 
         self.alerts_list = ["~ID_assigned", "Gp3_valid", "OTP_ECC", "ALERT_SIG", "Too_hot", "Was_sleeping", "OVT1", "OVT2"]
-        self.faults_list = ["_", "_", "INTERN_ISSUE", "FAULT_SIG", "PO_RESET", "CRC_ERR", ">UV_CELLS", ">OV_CELLS"]
+        self.faults_list = ["_", "_", "INTERN_ISSUE", "FAULT_SIG", "PO_RESET", "CRC_ERR", "<UV_CELLS", ">OV_CELLS"]
         self.alerts_val = []
         self.faults_val = []
         self.ov_cells_val = []
@@ -204,43 +229,50 @@ class BMSMonitorApp:
         v_thr_frame = tk.Frame(secu_thresholds_frame, width=20, height=20, bg='paleturquoise3')
         v_thr_frame.grid(row=0, column=0, padx=5, pady=5)
     
-        self.ov_thr_sel = tk.Label(v_thr_frame, width=THR_BOX_WIDTH, text="OV_THR: ?")
-        self.ov_thr_sel.grid(row=0, column=0)
-        self.uv_thr_sel = tk.Label(v_thr_frame, width=THR_BOX_WIDTH, text="UV_THR: ?")
-        self.uv_thr_sel.grid(row=1, column=0)
+        tk.Label(v_thr_frame, width=THR_BOX_WIDTH, text="OV_THR:", relief='groove').grid(row=0, column=0)
+        self.ov_thr_sel = tk.Label(v_thr_frame, width=int(0.5*THR_BOX_WIDTH), text="?", relief='groove')
+        self.ov_thr_sel.grid(row=0, column=1)
+        tk.Label(v_thr_frame, width=THR_BOX_WIDTH, text="UV_THR:", relief='groove').grid(row=1, column=0)
+        self.uv_thr_sel = tk.Label(v_thr_frame, width=int(0.5*THR_BOX_WIDTH), text="?", relief='groove')
+        self.uv_thr_sel.grid(row=1, column=1)
 
         self.ov_thr_input = tk.Entry(v_thr_frame, width=int(1.5*THR_BOX_WIDTH))
-        self.ov_thr_input.grid(row=0, column=1)
+        self.ov_thr_input.grid(row=0, column=2)
         self.ov_thr_input.insert(0, "Enter OV_THR")
         self.uv_thr_input = tk.Entry(v_thr_frame, width=int(1.5*THR_BOX_WIDTH))
-        self.uv_thr_input.grid(row=1, column=1)
+        self.uv_thr_input.grid(row=1, column=2)
         self.uv_thr_input.insert(0, "Enter UV_THR")
 
-        self.set_ov_thr_button = tk.Button(v_thr_frame, text="Set", command=self.set_ov_thr, state=tk.DISABLED)
+        self.set_ov_thr_button = tk.Button(v_thr_frame, text="Set", command=self.set_ov_thr_ui, state=tk.DISABLED)
         self.set_ov_thr_button.grid(row=0, column=3)
-        self.set_uv_thr_button = tk.Button(v_thr_frame, text="Set", command=self.set_uv_thr, state=tk.DISABLED)
+        self.set_uv_thr_button = tk.Button(v_thr_frame, text="Set", command=self.set_uv_thr_ui, state=tk.DISABLED)
         self.set_uv_thr_button.grid(row=1, column=3)
 
         # Temperature thresholds
         t_thr_frame = tk.Frame(secu_thresholds_frame, width=20, height=20, bg='paleturquoise3')
         t_thr_frame.grid(row=1, column=0, padx=5, pady=5)
     
-        self.ot_thr_sel = tk.Label(t_thr_frame, width=THR_BOX_WIDTH, text="OT_THR: ?")
-        self.ot_thr_sel.grid(row=0, column=0)
-        self.ut_thr_sel = tk.Label(t_thr_frame, width=THR_BOX_WIDTH, text="UT_THR: ?")
-        self.ut_thr_sel.grid(row=1, column=0)
+        tk.Label(t_thr_frame, width=THR_BOX_WIDTH, text="OT1_THR:", relief='groove').grid(row=0, column=0)
+        self.ot1_thr_sel = tk.Label(t_thr_frame, width=THR_BOX_WIDTH, text="?", relief='groove')
+        self.ot1_thr_sel.grid(row=0, column=1)
+        tk.Label(t_thr_frame, width=THR_BOX_WIDTH, text="OT2_THR:", relief='groove').grid(row=1, column=0)
+        self.ot2_thr_sel = tk.Label(t_thr_frame, width=THR_BOX_WIDTH, text="?", relief='groove')
+        self.ot2_thr_sel.grid(row=1, column=1)
 
-        self.ot_thr_input = tk.Entry(t_thr_frame, width=int(1.5*THR_BOX_WIDTH))
-        self.ot_thr_input.grid(row=0, column=1)
-        self.ot_thr_input.insert(0, "Enter OT_THR")
-        self.ut_thr_input = tk.Entry(t_thr_frame, width=int(1.5*THR_BOX_WIDTH))
-        self.ut_thr_input.grid(row=1, column=1)
-        self.ut_thr_input.insert(0, "Enter UT_THR")
+        self.ot1_thr_input = tk.Entry(t_thr_frame, width=int(1.5*THR_BOX_WIDTH))
+        self.ot1_thr_input.grid(row=0, column=2)
+        self.ot1_thr_input.insert(0, "Enter OT1_THR")
+        self.ot2_thr_input = tk.Entry(t_thr_frame, width=int(1.5*THR_BOX_WIDTH))
+        self.ot2_thr_input.grid(row=1, column=2)
+        self.ot2_thr_input.insert(0, "Enter OT2_THR")
 
-        self.set_ot_thr_button = tk.Button(t_thr_frame, text="Set", command=self.set_ot_thr, state=tk.DISABLED)
-        self.set_ot_thr_button.grid(row=0, column=3)
-        self.set_ut_thr_button = tk.Button(t_thr_frame, text="Set", command=self.set_ut_thr, state=tk.DISABLED)
-        self.set_ut_thr_button.grid(row=1, column=3)
+        self.set_ot1_thr_button = tk.Button(t_thr_frame, text="Set", command=self.set_ot1_thr_ui, state=tk.DISABLED)
+        self.set_ot1_thr_button.grid(row=0, column=3)
+        self.set_ot2_thr_button = tk.Button(t_thr_frame, text="Set", command=self.set_ot2_thr_ui, state=tk.DISABLED)
+        self.set_ot2_thr_button.grid(row=1, column=3)
+
+        tk.Button(secu_thresholds_frame, text="Update security thresholds", command=self.update_secu_thr).grid(row=2, column=0, padx=5, pady=5)
+        tk.Button(secu_thresholds_frame, text="OT_THR/CONFIG_OT meaning", command=self.show_ot_thr_info).grid(row=3, column=0, padx=5, pady=5)
 
     def create_alerts_and_faults_frame(self, main):
         # Alerts and Faults status
@@ -352,10 +384,10 @@ class BMSMonitorApp:
             self.thresh_lock_checkbutton.config(state=tk.DISABLED)
             self.reset_lock_checkbutton.config(state=tk.DISABLED)
             self.id_update_button.config(state=tk.DISABLED)
-            self.update_ov_thr_button.config(state=tk.DISABLED)
-            self.update_uv_thr_button.config(state=tk.DISABLED)
-            self.update_ot_thr_button.config(state=tk.DISABLED)
-            self.update_ut_thr_button.config(state=tk.DISABLED)
+            self.set_ov_thr_button.config(state=tk.DISABLED)
+            self.set_uv_thr_button.config(state=tk.DISABLED)
+            self.set_ot1_thr_button.config(state=tk.DISABLED)
+            self.set_ot2_thr_button.config(state=tk.DISABLED)
             self.reset_button.config(state=tk.DISABLED)
             print("Is all locked ?: ", self.is_all_locked)
         else:
@@ -366,10 +398,10 @@ class BMSMonitorApp:
             if self.id_lock.get()!=1:
                 self.id_update_button.config(state=tk.NORMAL)
             if self.thresh_lock.get()!=1:
-                self.update_ov_thr_button.config(state=tk.NORMAL)
-                self.update_uv_thr_button.config(state=tk.NORMAL)
-                self.update_ot_thr_button.config(state=tk.NORMAL)
-                self.update_ut_thr_button.config(state=tk.NORMAL)
+                self.set_ov_thr_button.config(state=tk.NORMAL)
+                self.set_uv_thr_button.config(state=tk.NORMAL)
+                self.set_ot1_thr_button.config(state=tk.NORMAL)
+                self.set_ot2_thr_button.config(state=tk.NORMAL)
             if self.reset_lock.get()!=1:
                 self.reset_button.config(state=tk.NORMAL)
             print("Is all locked ?: ", self.is_all_locked)
@@ -393,17 +425,17 @@ class BMSMonitorApp:
             return
         if self.thresh_lock.get() == 1:
             self.is_thresh_locked = True
-            self.update_ov_thr_button.config(state=tk.DISABLED)
-            self.update_uv_thr_button.config(state=tk.DISABLED)
-            self.update_ot_thr_button.config(state=tk.DISABLED)
-            self.update_ut_thr_button.config(state=tk.DISABLED)
+            self.set_ov_thr_button.config(state=tk.DISABLED)
+            self.set_uv_thr_button.config(state=tk.DISABLED)
+            self.set_ot1_thr_button.config(state=tk.DISABLED)
+            self.set_ot2_thr_button.config(state=tk.DISABLED)
             print("Are Thresholds locked ?: ", self.is_thresh_locked)
         else:
             self.is_thresh_locked = False
-            self.update_ov_thr_button.config(state=tk.NORMAL)
-            self.update_uv_thr_button.config(state=tk.NORMAL)
-            self.update_ot_thr_button.config(state=tk.NORMAL)
-            self.update_ut_thr_button.config(state=tk.NORMAL)
+            self.set_ov_thr_button.config(state=tk.NORMAL)
+            self.set_uv_thr_button.config(state=tk.NORMAL)
+            self.set_ot1_thr_button.config(state=tk.NORMAL)
+            self.set_ot2_thr_button.config(state=tk.NORMAL)
             print("Are Thresholds locked ?: ", self.is_thresh_locked)
 
     def lock_reset(self):
@@ -434,6 +466,15 @@ class BMSMonitorApp:
         # Board ID should have got back to 0
         self.id = get_slave_id(ser=self.serial_con, id=BROADCAST_ADDR)
         self.id_sel.config(text=f"ID: {self.id}")
+
+    def show_ot_thr_info(self):
+        info_window = tk.Toplevel(self.main)
+        info_window.title("Over temperature threshold information")
+        doc_screenshot = tk.PhotoImage(file=OT_THR_TABLE_IMG)
+        image_label = tk.Label(info_window, image=doc_screenshot)
+        image_label.image = doc_screenshot 
+        image_label.pack()
+        print("Show over temperature threshold meaning info")
 
     def show_alerts_info(self):
         info_window = tk.Toplevel(self.main)
@@ -502,6 +543,8 @@ class BMSMonitorApp:
         self.update_meas()
         # Update alerts and faults
         self.update_alerts_and_faults()
+        # Update thresholds reading
+        self.update_secu_thr()
         return True
 
     def set_id(self):
@@ -531,7 +574,20 @@ class BMSMonitorApp:
         for i, temp in enumerate(self.temps):
             temp.config(text=meas_buff[7+i])
 
-    def set_ov_thr(self):
+    def update_secu_thr(self):
+        #TODO: Display the information when security thresholds are disabled
+        print("Update security thresholds")
+        ov_thr = get_ov_thr(ser=self.serial_con, id=self.id)
+        uv_thr = get_uv_thr(ser=self.serial_con, id=self.id)
+        ot_thr = get_ot_thr(ser=self.serial_con, id=self.id)
+        self.ov_thr_sel.config(text = f"{ov_thr} V")
+        self.uv_thr_sel.config(text = f"{uv_thr} V")
+        ot1_thr = ot_thr & 0x0F
+        ot2_thr = (ot_thr & 0xF0) >> 4
+        self.ot1_thr_sel.config(text = f"{ot1_thr} ({OT_THR_TO_CELCIUS_LU_TABLE[ot1_thr]})")
+        self.ot2_thr_sel.config(text = f"{ot2_thr} ({OT_THR_TO_CELCIUS_LU_TABLE[ot2_thr]})")
+
+    def set_ov_thr_ui(self):
         if not self.con_status:
             print("No board connected")
             return
@@ -540,7 +596,7 @@ class BMSMonitorApp:
         else:
             print("Set OVT done")
 
-    def set_uv_thr(self):
+    def set_uv_thr_ui(self):
         if not self.con_status:
             print("No board connected")
             return
@@ -549,23 +605,23 @@ class BMSMonitorApp:
         else:
             print("Set UVT done")
 
-    def set_ot_thr(self):
+    def set_ot1_thr_ui(self):
         if not self.con_status:
             print("No board connected")
             return
         if self.is_reset_locked or self.is_all_locked:
             print("WARNING: thresholds set locked")
         else:
-            print("Set OTT done")
+            print("Set OT1T done")
 
-    def set_ut_thr(self):
+    def set_ot2_thr_ui(self):
         if not self.con_status:
             print("No board connected")
             return
         if self.is_reset_locked or self.is_all_locked:
             print("WARNING: thresholds set locked")
         else:
-            print("Set UTT done")
+            print("Set OT2T done")
 
     def update_alerts_and_faults(self):
         if not self.con_status:
