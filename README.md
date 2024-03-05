@@ -47,3 +47,9 @@ python src/main.py
 # At any moment, you can deactivate the venv and get back to your global Python environment with
 deactivate
 ```
+
+
+# TODO
+
+- Add reading and displaying of DEVICE_STATUS register
+- Add setting of voltage and temperature threshold comparison timings.
