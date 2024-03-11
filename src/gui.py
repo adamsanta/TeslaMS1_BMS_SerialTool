@@ -563,7 +563,7 @@ class BMSMonitorApp:
             print("WARNING: ID locked")
         else:
             if set_slave_id(ser=self.serial_con, old_id=self.id, new_id=id_in)!=-1:
-                self.id_sel.config(text=f"ID: {(id_in if id_in!="" else "?")}")
+                self.id_sel.config(text=f"ID: {(id_in if id_in!='' else '?')}")
                 self.id = id_in
             else:
                 messagebox.showwarning("WARNING", f"Setting ID to {id_in} failed.")
