@@ -8,6 +8,7 @@ __pycache__/
 
 # venv related folders
 *venv/
+.python-version
 
 # log folder
 log/
