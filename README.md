@@ -53,5 +53,7 @@ deactivate
 
 # TODO
 
+- Add a full update button
 - Add reading and displaying of DEVICE_STATUS register
 - Add setting of voltage and temperature threshold comparison timings.
+- Display the information when security thresholds are disabled

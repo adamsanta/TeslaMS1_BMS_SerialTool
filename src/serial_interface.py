@@ -30,6 +30,11 @@ def _print(*args, **kwargs):
     if VERBOSE:
         print(*args, **kwargs)
 
+class CrcNok(Exception):
+    # Raised when there is a CRC check missmatch
+    def __init__(self, message):
+        _print(message)
+
 def con_serial_port(port_name):
     serial_con = None
     try:
@@ -78,8 +83,7 @@ def read_bq76(ser, id, reg_addr, length):
     if ans[-1]==crc_res:
         _print(f"CRC OK: expected:{hex(crc_res)}==received:{hex(ans[-1])}")
     else:
-        _print(f"CRC NOK: expected{hex(crc_res)}!=received:{hex(ans[-1])}")
-    
+        raise CrcNok(f"CRC NOK: expected{hex(crc_res)}!=received:{hex(ans[-1])}")
     _print("")
 
     return ans
@@ -108,12 +112,19 @@ def reset_slave(*, ser, id):
     _print(f"Reset slave {id}.\n")
     return rx_data
 
-def get_slave_id(*, ser, id):
-    rx_data = read_bq76(ser, id, 0x3b, 0x1)
-    if len(rx_data)<4:
-        _print(f"ERROR: get_slave_id({id}) failed.\n")
-        return -1
-    slave_id = rx_data[3]&0x3F
+def get_slave_id(*, ser):
+    _print("Searching for board ID...")
+    for tested_id in range(0x00, 0x3f):
+        _print(f"Testing ID {tested_id}")
+        try:
+            rx_data = read_bq76(ser, tested_id, 0x3b, 0x1)
+        except CrcNok:
+            continue
+        if len(rx_data)<4:
+            continue
+        slave_id = rx_data[3]&0x3F
+        break
+
     if rx_data[3]&0x80:
         _print(f"Slave ID: {slave_id} (set)\n")
     else:
@@ -221,13 +232,14 @@ def get_ov_thr(*, ser, id):
         _print(f"Overvoltage threshold (slave #{id})= {ov_thr} V.\n")
         return ov_thr
 
-def set_ov_thr(*, ser, id, new_ov_thr):
+def set_ov_thr(*, ser, id, new_ov_thr_v):
     # Unlock protected registers
     rx_data = read_bq76(ser, id, SHDW_REG_ADDR, 0x1)
     shdw_reg_backup = rx_data[3]
     rx_data = write_bq76(ser, id, SHDW_REG_ADDR, shdw_reg_backup|SHDW_UNLOCK_MAGIC_CODE)
     _print(f"Unlock protected registers for slave {id}.\n")
 
+    new_ov_thr = int((new_ov_thr_v - 2)/0.050)
     rx_data = write_bq76(ser, id, OV_REG_ADDR, new_ov_thr)
     if len(rx_data)<3:
         _print(f"ERROR: set_ov_thr({new_ov_thr}) for slave #{id} failed.\n")
@@ -253,13 +265,14 @@ def get_uv_thr(*, ser, id):
         _print(f"Undervoltage threshold (slave #{id})= {uv_thr} V.\n")
         return uv_thr
     
-def set_uv_thr(*, ser, id, new_uv_thr):
+def set_uv_thr(*, ser, id, new_uv_thr_v):
     # Unlock protected registers
     rx_data = read_bq76(ser, id, SHDW_REG_ADDR, 0x1)
     shdw_reg_backup = rx_data[3]
     rx_data = write_bq76(ser, id, SHDW_REG_ADDR, shdw_reg_backup|SHDW_UNLOCK_MAGIC_CODE)
     _print(f"Unlock protected registers for slave {id}.\n")
 
+    new_uv_thr = int((new_uv_thr_v - 0.7)/0.1)
     rx_data = write_bq76(ser, id, UV_REG_ADDR, new_uv_thr)
     if len(rx_data)<3:
         _print(f"ERROR: set_uv_thr({new_uv_thr}) for slave #{id} failed.\n")

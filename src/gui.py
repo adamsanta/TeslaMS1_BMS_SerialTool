@@ -464,7 +464,7 @@ class BMSMonitorApp:
             reset_slave(ser=self.serial_con, id=self.id)
             print(f"Reset done for {self.id}")
         # Board ID should have got back to 0
-        self.id = get_slave_id(ser=self.serial_con, id=BROADCAST_ADDR)
+        self.id = get_slave_id(ser=self.serial_con)
         self.id_sel.config(text=f"ID: {self.id}")
         # Update ADC meas two times to let readings stabilizing
         self.update_meas()
@@ -530,21 +530,24 @@ class BMSMonitorApp:
             messagebox.showwarning("WARNING", f"Connection to {port_name} failed.")
             self.con_status = False
             return False
+        
         # Get the board ID to be able to address it
         try:
-            self.id = get_slave_id(ser=self.serial_con, id=BROADCAST_ADDR)
+            self.id = get_slave_id(ser=self.serial_con)
         except:
             messagebox.showwarning("WARNING", f"Issue heppened when trying to communicate with a BMS at {port_name} (e.g: no answer when reading ID).")
             disco_serial_port(self.serial_con)
-            return False  
+            return False
         self.id_sel.config(text=f"ID: {self.id}")
         self.con_status = True
         self.com_port_sel.config(text=f"COM_PORT: {port_name} (CON)", fg="chartreuse4", font=("Helvetica", 10, "bold"))
         
+        # Save a memory dump in the log file
         state_snapshot = ""
         for i, byte in enumerate(full_dump(ser=self.serial_con, id=self.id)):
             state_snapshot = state_snapshot + (f"@{i}:{hex(byte)} " if byte>15 else f"@{i}:{hex(byte)}  ")
         self.logger.info("Connection to %s, memory dump: %s", port_name, state_snapshot)
+        
         # Update ADC meas two times to let readings stabilizing
         self.update_meas()
         self.update_meas()
@@ -564,6 +567,7 @@ class BMSMonitorApp:
         else:
             if set_slave_id(ser=self.serial_con, old_id=self.id, new_id=id_in)!=-1:
                 self.id_sel.config(text=f"ID: {(id_in if id_in!='' else '?')}")
+                self.logger.info("ID changed from %s to %s", self.id, id_in)
                 self.id = id_in
             else:
                 messagebox.showwarning("WARNING", f"Setting ID to {id_in} failed.")
@@ -598,36 +602,52 @@ class BMSMonitorApp:
         if not self.con_status:
             print("No board connected")
             return
-        if self.is_reset_locked or self.is_all_locked:
+        if self.is_thresh_locked or self.is_all_locked:
             print("WARNING: thresholds set locked")
+            return
         else:
+            ovt_in = float(self.ov_thr_input.get())
+            set_ov_thr(ser=self.serial_con, id=self.id, new_ov_thr_v=ovt_in)
+            self.logger.info("Overvoltage threshold changed for slave %s from %s to %s V", self.id, self.ov_thr_sel.cget("text"), ovt_in)
+            self.ov_thr_sel.config(text = f"{ovt_in} V")
             print("Set OVT done")
 
     def set_uv_thr_ui(self):
         if not self.con_status:
             print("No board connected")
             return
-        if self.is_reset_locked or self.is_all_locked:
+        if self.is_thresh_locked or self.is_all_locked:
             print("WARNING: thresholds set locked")
+            return
         else:
+            uvt_in = float(self.uv_thr_input.get())
+            set_uv_thr(ser=self.serial_con, id=self.id, new_uv_thr_v=uvt_in)
+            self.logger.info("Undervoltage threshold changed for slave %s from %s to %s V", self.id, self.uv_thr_sel.cget("text"), uvt_in)
+            self.uv_thr_sel.config(text = f"{uvt_in} V")
             print("Set UVT done")
 
     def set_ot1_thr_ui(self):
         if not self.con_status:
             print("No board connected")
             return
-        if self.is_reset_locked or self.is_all_locked:
+        if self.is_thresh_locked or self.is_all_locked:
             print("WARNING: thresholds set locked")
         else:
+            ot1t_in = int(self.ot1_thr_input.get())
+            # set_ot1_thr(ser=self.serial_con, id=self.id, new_ot1_thr_deg=ot1t_in)
+            self.ot1_thr_sel.config(text = f"{ot1t_in} °C")
             print("Set OT1T done")
 
     def set_ot2_thr_ui(self):
         if not self.con_status:
             print("No board connected")
             return
-        if self.is_reset_locked or self.is_all_locked:
+        if self.is_thresh_locked or self.is_all_locked:
             print("WARNING: thresholds set locked")
         else:
+            ot2t_in = int(self.ot2_thr_input.get())
+            # set_ot2_thr(ser=self.serial_con, id=self.id, new_ot2_thr_deg=ot2t_in)
+            self.ot2_thr_sel.config(text = f"{ot2t_in} °C")
             print("Set OT2T done")
 
     def update_alerts_and_faults(self):
