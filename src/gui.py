@@ -6,7 +6,8 @@ import tkinter as tk
 from pathlib import Path
 
 from serial_interface import (
-    BROADCAST_ADDR,
+    OT_THR_TO_CELCIUS_LU_TABLE,
+    OT_THR_TO_CELCIUS_LU_TABLE_REVERSE,
     con_serial_port,
     disco_serial_port,
     reset_slave,
@@ -23,6 +24,7 @@ from serial_interface import (
     set_ov_thr,
     set_uv_thr,
     get_ot_thr,
+    set_ot1_thr,
 )
 from tkinter import messagebox
 
@@ -37,21 +39,6 @@ OT_THR_TABLE_IMG = ROOT_FOLDER / "img" / "ot_thr_meaning.png"
 
 LOG_FOLDER = ROOT_FOLDER / "log"
 LOG_FILE = LOG_FOLDER / "log.txt"
-
-OT_THR_TO_CELCIUS_LU_TABLE = {
-    0: "dis",
-    1: "40°C",
-    2: "45°C",
-    3: "50°C",
-    4: "55°C",
-    5: "60°C",
-    6: "65°C",
-    7: "70°C",
-    8: "75°C",
-    9: "80°C",
-    10: "85°C",
-    11: "90°C",
-}
 
 def check_com_port_format(comport_string):
     if re.match(COM_PORT_PATTERN, comport_string):
@@ -201,7 +188,7 @@ class BMSMonitorApp:
         temp_frame.grid(row=1, column=0, padx=5, pady=5)
 
         tk.Label(temp_frame, text="Temperature", width=TEMP_ARRAY_WIDTH, relief='raised').grid(row=0, column=0)
-        tk.Label(temp_frame, text="°C", width=TEMP_ARRAY_WIDTH, relief='raised').grid(row=0, column=1)
+        tk.Label(temp_frame, text="degC", width=TEMP_ARRAY_WIDTH, relief='raised').grid(row=0, column=1)
 
         tk.Label(temp_frame, text="Temp1", width=TEMP_ARRAY_WIDTH, relief='groove').grid(row=1, column=0)
         temp1 = tk.Label(temp_frame, text="?", width=TEMP_ARRAY_WIDTH, relief='groove')
@@ -547,7 +534,7 @@ class BMSMonitorApp:
         for i, byte in enumerate(full_dump(ser=self.serial_con, id=self.id)):
             state_snapshot = state_snapshot + (f"@{i}:{hex(byte)} " if byte>15 else f"@{i}:{hex(byte)}  ")
         self.logger.info("Connection to %s, memory dump: %s", port_name, state_snapshot)
-        
+
         # Update ADC meas two times to let readings stabilizing
         self.update_meas()
         self.update_meas()
@@ -590,13 +577,11 @@ class BMSMonitorApp:
         print("Update security thresholds")
         ov_thr = get_ov_thr(ser=self.serial_con, id=self.id)
         uv_thr = get_uv_thr(ser=self.serial_con, id=self.id)
-        ot_thr = get_ot_thr(ser=self.serial_con, id=self.id)
+        ot1_thr, ot2_thr = get_ot_thr(ser=self.serial_con, id=self.id)
         self.ov_thr_sel.config(text = f"{ov_thr} V")
         self.uv_thr_sel.config(text = f"{uv_thr} V")
-        ot1_thr = ot_thr & 0x0F
-        ot2_thr = (ot_thr & 0xF0) >> 4
-        self.ot1_thr_sel.config(text = f"{ot1_thr} ({OT_THR_TO_CELCIUS_LU_TABLE[ot1_thr]})")
-        self.ot2_thr_sel.config(text = f"{ot2_thr} ({OT_THR_TO_CELCIUS_LU_TABLE[ot2_thr]})")
+        self.ot1_thr_sel.config(text = f"{ot1_thr} ({OT_THR_TO_CELCIUS_LU_TABLE[ot1_thr]}degC)")
+        self.ot2_thr_sel.config(text = f"{ot2_thr} ({OT_THR_TO_CELCIUS_LU_TABLE[ot2_thr]}degC)")
 
     def set_ov_thr_ui(self):
         if not self.con_status:
@@ -634,8 +619,14 @@ class BMSMonitorApp:
             print("WARNING: thresholds set locked")
         else:
             ot1t_in = int(self.ot1_thr_input.get())
-            # set_ot1_thr(ser=self.serial_con, id=self.id, new_ot1_thr_deg=ot1t_in)
-            self.ot1_thr_sel.config(text = f"{ot1t_in} °C")
+            print(ot1t_in)
+            print(list(OT_THR_TO_CELCIUS_LU_TABLE.values()))
+            if str(ot1t_in) not in list(OT_THR_TO_CELCIUS_LU_TABLE.values()):
+                messagebox.showwarning("WARNING", f"Valid temperatures are (degC): {[temp for temp in OT_THR_TO_CELCIUS_LU_TABLE_REVERSE.keys()]}")
+                return
+            set_ot1_thr(ser=self.serial_con, id=self.id, new_ot1_thr_deg=ot1t_in)
+            self.logger.info("Over temperature 1 threshold changed for slave %s from %s to %s (%sdegC)", self.id, self.ot1_thr_sel.cget("text"), OT_THR_TO_CELCIUS_LU_TABLE_REVERSE[ot1t_in], ot1t_in)
+            self.ot1_thr_sel.config(text = f"{OT_THR_TO_CELCIUS_LU_TABLE_REVERSE[ot1t_in]} ({ot1t_in}degC)")
             print("Set OT1T done")
 
     def set_ot2_thr_ui(self):
@@ -647,7 +638,7 @@ class BMSMonitorApp:
         else:
             ot2t_in = int(self.ot2_thr_input.get())
             # set_ot2_thr(ser=self.serial_con, id=self.id, new_ot2_thr_deg=ot2t_in)
-            self.ot2_thr_sel.config(text = f"{ot2t_in} °C")
+            self.ot2_thr_sel.config(text = f"{ot2t_in}degC")
             print("Set OT2T done")
 
     def update_alerts_and_faults(self):

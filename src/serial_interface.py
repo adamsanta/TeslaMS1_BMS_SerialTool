@@ -26,6 +26,35 @@ FAULT_STATUS_ADDR = 0x21
 OV_CELLS_ADDR = 0x22
 UV_CELLS_ADDR = 0x23
 
+OT_THR_TO_CELCIUS_LU_TABLE = {
+    0: "dis",
+    1: "40",
+    2: "45",
+    3: "50",
+    4: "55",
+    5: "60",
+    6: "65",
+    7: "70",
+    8: "75",
+    9: "80",
+    10: "85",
+    11: "90",
+}
+
+OT_THR_TO_CELCIUS_LU_TABLE_REVERSE = {
+    40: 1,
+    45: 2,
+    50: 3,
+    55: 4,
+    60: 5,
+    65: 6,
+    70: 7,
+    75: 8,
+    80: 9,
+    85: 10,
+    90: 11,
+}
+
 def _print(*args, **kwargs):
     if VERBOSE:
         print(*args, **kwargs)
@@ -295,4 +324,29 @@ def get_ot_thr(*, ser, id):
         return -1
     else:
         _print(f"Over temperature threshold config (slave #{id})= {rx_data[3]} V.\n")
-        return rx_data[3]
+        ot1_thr = rx_data[3] & 0x0F
+        ot2_thr = (rx_data[3] & 0xF0) >> 4
+        return ot1_thr, ot2_thr
+    
+def set_ot1_thr(*, ser, id, new_ot1_thr_deg):
+    # Unlock protected registers
+    rx_data = read_bq76(ser, id, SHDW_REG_ADDR, 0x1)
+    shdw_reg_backup = rx_data[3]
+    rx_data = write_bq76(ser, id, SHDW_REG_ADDR, shdw_reg_backup|SHDW_UNLOCK_MAGIC_CODE)
+    _print(f"Unlock protected registers for slave {id}.\n")
+
+    new_ot1_thr = OT_THR_TO_CELCIUS_LU_TABLE_REVERSE[new_ot1_thr_deg]
+    rx_data = read_bq76(ser, id, OT_REG_ADDR, 0x1)
+    ot_reg_backup = rx_data[3]
+    rx_data = write_bq76(ser, id, OT_REG_ADDR, (ot_reg_backup&0xF0)|(new_ot1_thr&0x0F))
+    if len(rx_data)<3:
+        _print(f"ERROR: set_ot1_thr({new_ot1_thr}) for slave #{id} failed.\n")
+        return -1
+    if rx_data[2]==new_ot1_thr:
+        _print(f"OT1_THR update OK: {new_ot1_thr}=={rx_data[2]}.\n")
+    else:
+        _print(f"OT1_THR update NOK: {new_ot1_thr}!={rx_data[2]}.\n")
+
+    # Set back protected registers lock state
+    rx_data = write_bq76(ser, id, SHDW_REG_ADDR, shdw_reg_backup)
+    _print(f"Set back protected registers lock state for slave {id}.\n")
