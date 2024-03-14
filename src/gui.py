@@ -460,6 +460,7 @@ class BMSMonitorApp:
         self.update_alerts_and_faults()
         # Update thresholds reading
         self.update_secu_thr()
+        self.log_full_memory()
 
     def show_ot_thr_info(self):
         info_window = tk.Toplevel(self.main)
@@ -487,6 +488,13 @@ class BMSMonitorApp:
         image_label.image = resigster_screenshot 
         image_label.pack()
         print("Show faults info")
+
+    def log_full_memory(self):
+        # Save a full memory dump in the log file
+        state_snapshot = ""
+        for i, byte in enumerate(full_dump(ser=self.serial_con, id=self.id)):
+            state_snapshot = state_snapshot + (f"@{i}:{hex(byte)} " if byte>15 else f"@{i}:{hex(byte)}  ")
+        self.logger.info("Connection to %s, memory dump: %s", self.serial_con.name, state_snapshot)
 
     def disco_port(self):
         if not self.con_status:
@@ -530,10 +538,7 @@ class BMSMonitorApp:
         self.com_port_sel.config(text=f"COM_PORT: {port_name} (CON)", fg="chartreuse4", font=("Helvetica", 10, "bold"))
         
         # Save a memory dump in the log file
-        state_snapshot = ""
-        for i, byte in enumerate(full_dump(ser=self.serial_con, id=self.id)):
-            state_snapshot = state_snapshot + (f"@{i}:{hex(byte)} " if byte>15 else f"@{i}:{hex(byte)}  ")
-        self.logger.info("Connection to %s, memory dump: %s", port_name, state_snapshot)
+        self.log_full_memory()
 
         # Update ADC meas two times to let readings stabilizing
         self.update_meas()
@@ -556,6 +561,7 @@ class BMSMonitorApp:
                 self.id_sel.config(text=f"ID: {(id_in if id_in!='' else '?')}")
                 self.logger.info("ID changed from %s to %s", self.id, id_in)
                 self.id = id_in
+                self.log_full_memory()
             else:
                 messagebox.showwarning("WARNING", f"Setting ID to {id_in} failed.")
 
@@ -595,6 +601,7 @@ class BMSMonitorApp:
             set_ov_thr(ser=self.serial_con, id=self.id, new_ov_thr_v=ovt_in)
             self.logger.info("Overvoltage threshold changed for slave %s from %s to %s V", self.id, self.ov_thr_sel.cget("text"), ovt_in)
             self.ov_thr_sel.config(text = f"{ovt_in} V")
+            self.log_full_memory()
             print("Set OVT done")
 
     def set_uv_thr_ui(self):
@@ -609,6 +616,7 @@ class BMSMonitorApp:
             set_uv_thr(ser=self.serial_con, id=self.id, new_uv_thr_v=uvt_in)
             self.logger.info("Undervoltage threshold changed for slave %s from %s to %s V", self.id, self.uv_thr_sel.cget("text"), uvt_in)
             self.uv_thr_sel.config(text = f"{uvt_in} V")
+            self.log_full_memory()
             print("Set UVT done")
 
     def set_ot1_thr_ui(self):
@@ -627,6 +635,7 @@ class BMSMonitorApp:
             self.ot1_thr_sel.config(text = f"{OT_THR_TO_CELCIUS_LU_TABLE_REVERSE[ot1t_in]} ({ot1t_in}degC)")
             self.ot1_thr_input.delete(0, tk.END)
             self.ot1_thr_input.insert(0, "Enter OT1_THR")
+            self.log_full_memory()
             print("Set OT1T done")
 
     def set_ot2_thr_ui(self):
@@ -645,6 +654,7 @@ class BMSMonitorApp:
             self.ot2_thr_sel.config(text = f"{OT_THR_TO_CELCIUS_LU_TABLE_REVERSE[ot2t_in]} ({ot2t_in}degC)")
             self.ot2_thr_input.delete(0, tk.END)
             self.ot2_thr_input.insert(0, "Enter OT2_THR")
+            self.log_full_memory()
             print("Set OT2T done")
 
     def update_alerts_and_faults(self):
