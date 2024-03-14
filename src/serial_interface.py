@@ -112,7 +112,7 @@ def read_bq76(ser, id, reg_addr, length):
     if ans[-1]==crc_res:
         _print(f"CRC OK: expected:{hex(crc_res)}==received:{hex(ans[-1])}")
     else:
-        raise CrcNok(f"CRC NOK: expected{hex(crc_res)}!=received:{hex(ans[-1])}")
+        raise CrcNok(f"CRC NOK: expected:{hex(crc_res)}!=received:{hex(ans[-1])}")
     _print("")
 
     return ans
@@ -327,25 +327,32 @@ def get_ot_thr(*, ser, id):
         ot1_thr = rx_data[3] & 0x0F
         ot2_thr = (rx_data[3] & 0xF0) >> 4
         return ot1_thr, ot2_thr
-    
-def set_ot1_thr(*, ser, id, new_ot1_thr_deg):
+
+def set_ot_thr(*, ser, id, new_ot_thr_deg, temp_id):
+    # Check temp_id is valid (there is only two temperatures on TI BQ76)
+    if temp_id not in [1, 2]:
+        return -1
     # Unlock protected registers
     rx_data = read_bq76(ser, id, SHDW_REG_ADDR, 0x1)
     shdw_reg_backup = rx_data[3]
     rx_data = write_bq76(ser, id, SHDW_REG_ADDR, shdw_reg_backup|SHDW_UNLOCK_MAGIC_CODE)
     _print(f"Unlock protected registers for slave {id}.\n")
 
-    new_ot1_thr = OT_THR_TO_CELCIUS_LU_TABLE_REVERSE[new_ot1_thr_deg]
+    new_ot_thr = OT_THR_TO_CELCIUS_LU_TABLE_REVERSE[new_ot_thr_deg]
     rx_data = read_bq76(ser, id, OT_REG_ADDR, 0x1)
     ot_reg_backup = rx_data[3]
-    rx_data = write_bq76(ser, id, OT_REG_ADDR, (ot_reg_backup&0xF0)|(new_ot1_thr&0x0F))
+    if temp_id==1:
+        new_ot_reg = (ot_reg_backup&0xF0)|(new_ot_thr&0x0F)
+    elif temp_id==2: 
+        new_ot_reg = (ot_reg_backup&0x0F)|(new_ot_thr<<4)
+    rx_data = write_bq76(ser, id, OT_REG_ADDR, new_ot_reg)
     if len(rx_data)<3:
-        _print(f"ERROR: set_ot1_thr({new_ot1_thr}) for slave #{id} failed.\n")
+        _print(f"ERROR: set_ot{temp_id}_thr({new_ot_thr}) for slave #{id} failed.\n")
         return -1
-    if rx_data[2]==new_ot1_thr:
-        _print(f"OT1_THR update OK: {new_ot1_thr}=={rx_data[2]}.\n")
+    if rx_data[2]==new_ot_thr:
+        _print(f"OT{temp_id}_THR update OK: {new_ot_thr}=={rx_data[2]}.\n")
     else:
-        _print(f"OT1_THR update NOK: {new_ot1_thr}!={rx_data[2]}.\n")
+        _print(f"OT{temp_id}_THR update NOK: {new_ot_thr}!={rx_data[2]}.\n")
 
     # Set back protected registers lock state
     rx_data = write_bq76(ser, id, SHDW_REG_ADDR, shdw_reg_backup)

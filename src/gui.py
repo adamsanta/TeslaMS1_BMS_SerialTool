@@ -24,7 +24,7 @@ from serial_interface import (
     set_ov_thr,
     set_uv_thr,
     get_ot_thr,
-    set_ot1_thr,
+    set_ot_thr,
 )
 from tkinter import messagebox
 
@@ -619,14 +619,14 @@ class BMSMonitorApp:
             print("WARNING: thresholds set locked")
         else:
             ot1t_in = int(self.ot1_thr_input.get())
-            print(ot1t_in)
-            print(list(OT_THR_TO_CELCIUS_LU_TABLE.values()))
             if str(ot1t_in) not in list(OT_THR_TO_CELCIUS_LU_TABLE.values()):
                 messagebox.showwarning("WARNING", f"Valid temperatures are (degC): {[temp for temp in OT_THR_TO_CELCIUS_LU_TABLE_REVERSE.keys()]}")
                 return
-            set_ot1_thr(ser=self.serial_con, id=self.id, new_ot1_thr_deg=ot1t_in)
+            set_ot_thr(ser=self.serial_con, id=self.id, new_ot_thr_deg=ot1t_in, temp_id=1)
             self.logger.info("Over temperature 1 threshold changed for slave %s from %s to %s (%sdegC)", self.id, self.ot1_thr_sel.cget("text"), OT_THR_TO_CELCIUS_LU_TABLE_REVERSE[ot1t_in], ot1t_in)
             self.ot1_thr_sel.config(text = f"{OT_THR_TO_CELCIUS_LU_TABLE_REVERSE[ot1t_in]} ({ot1t_in}degC)")
+            self.ot1_thr_input.delete(0, tk.END)
+            self.ot1_thr_input.insert(0, "Enter OT1_THR")
             print("Set OT1T done")
 
     def set_ot2_thr_ui(self):
@@ -637,8 +637,14 @@ class BMSMonitorApp:
             print("WARNING: thresholds set locked")
         else:
             ot2t_in = int(self.ot2_thr_input.get())
-            # set_ot2_thr(ser=self.serial_con, id=self.id, new_ot2_thr_deg=ot2t_in)
-            self.ot2_thr_sel.config(text = f"{ot2t_in}degC")
+            if str(ot2t_in) not in list(OT_THR_TO_CELCIUS_LU_TABLE.values()):
+                messagebox.showwarning("WARNING", f"Valid temperatures are (degC): {[temp for temp in OT_THR_TO_CELCIUS_LU_TABLE_REVERSE.keys()]}")
+                return
+            set_ot_thr(ser=self.serial_con, id=self.id, new_ot_thr_deg=ot2t_in, temp_id=2)
+            self.logger.info("Over temperature 2 threshold changed for slave %s from %s to %s (%sdegC)", self.id, self.ot2_thr_sel.cget("text"), OT_THR_TO_CELCIUS_LU_TABLE_REVERSE[ot2t_in], ot2t_in)
+            self.ot2_thr_sel.config(text = f"{OT_THR_TO_CELCIUS_LU_TABLE_REVERSE[ot2t_in]} ({ot2t_in}degC)")
+            self.ot2_thr_input.delete(0, tk.END)
+            self.ot2_thr_input.insert(0, "Enter OT2_THR")
             print("Set OT2T done")
 
     def update_alerts_and_faults(self):
