@@ -53,6 +53,8 @@ deactivate
 
 # TODO
 
+- Add a list of features in README
+- Write doc on logging
 - Add a full update button
 - Add reading and displaying of DEVICE_STATUS register
 - Add setting of voltage and temperature threshold comparison timings.
