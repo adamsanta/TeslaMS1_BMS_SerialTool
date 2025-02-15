@@ -6,13 +6,14 @@ This tool is a *Python* GUI for communicating with the **Tesla Model S** mk1 (20
 
 # Hardware setup
 
-We will communicate with the slave BMS through this connector available on its PCB:
+The picture below show the **Tesla Model S** mk1 (2012-2016) slave **BMS** for which the present tool is made for.
+We will communicate with it through a connector available on its PCB:
 ![PCB serial com entry point](img/slave_bms_pcb_back.png "Com entry point")
 
-This female connector is compatible with the male connector **Molex 0015975101**:<br>
+The female connector highlighted on the picture is compatible with the male connector **Molex 0015975101**:<br>
 https://www.molex.com/en-us/products/part-detail/15975101
 
-To setup the cable connecting your laptop to the slave BMS, we will use this male connector and follow the following schematic:
+To setup the cable connecting your laptop to the slave BMS, we will use this male connector (**Molex 0015975101**) and follow the following schematic:
 
 **Warning:** 
 - If your BMS board is disconnected from any other BMS, you can set up the FT232 USB UART board to either 3.3V or 5V. This is because the Si8642 Isolator used on the BMS can accept both voltages on its bus interface. If your BMS board is already receiving an external voltage on its Molex connector, use the same voltage as already present.
@@ -53,10 +54,14 @@ deactivate
 
 # TODO
 
+- Add warning on responsibility if any issue
 - Add a list of features in README
 - Write doc on logging
 - Add a full update button
 - Add reading and displaying of DEVICE_STATUS register
-- Add setting of voltage and temperature threshold comparison timings.
+- Add setting of voltage and temperature threshold comparison timings
 - Display the information when security thresholds are disabled
 - Refactor for Python uv
+- Mention sources
+- Add a markdown file for extra information
+- Add things to clarify (toggling UV OV alerts)
