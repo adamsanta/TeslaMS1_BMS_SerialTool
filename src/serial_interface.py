@@ -228,14 +228,19 @@ def read_adc_meas(*, ser, id):
     _print(gpai, vcell1, vcell2, vcell3, vcell4, vcell5, vcell6, temp1, temp2, "\n")
 
     # Setting back registers' content before returning
-    write_bq76(ser, 0, ADC_CONFIG_ADDR, adc_config_reg_backup)
-    write_bq76(ser, 0, IO_CONFIG_ADDR, io_config_reg_backup)
+    write_bq76(ser, id, ADC_CONFIG_ADDR, adc_config_reg_backup)
+    write_bq76(ser, id, IO_CONFIG_ADDR, io_config_reg_backup)
 
     return gpai, vcell1, vcell2, vcell3, vcell4, vcell5, vcell6, temp1, temp2
 
 def read_alerts(*, ser, id):
     rx_data = read_bq76(ser, id, ALERT_STATUS_ADDR, 0x1)
     return rx_data[3]
+
+def clear_cuv_cov_faults(*, ser, id):
+    rx_data = read_bq76(ser, id, FAULT_STATUS_ADDR, 0x1)
+    write_bq76(ser, id, FAULT_STATUS_ADDR, rx_data[3]|0x03)
+    write_bq76(ser, id, FAULT_STATUS_ADDR, rx_data[3]&0x3C)
 
 def read_faults(*, ser, id):
     rx_data = read_bq76(ser, id, FAULT_STATUS_ADDR, 0x1)
@@ -323,7 +328,7 @@ def get_ot_thr(*, ser, id):
         _print(f"Over temperature protection disabled for slave #{id}.\n")
         return -1
     else:
-        _print(f"Over temperature threshold config (slave #{id})= {rx_data[3]} V.\n")
+        _print(f"Over temperature threshold configured (slave #{id}).\n")
         ot1_thr = rx_data[3] & 0x0F
         ot2_thr = (rx_data[3] & 0xF0) >> 4
         return ot1_thr, ot2_thr

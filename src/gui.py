@@ -25,6 +25,7 @@ from serial_interface import (
     set_uv_thr,
     get_ot_thr,
     set_ot_thr,
+    clear_cuv_cov_faults,
 )
 from tkinter import messagebox
 
@@ -544,6 +545,8 @@ class BMSMonitorApp:
         self.update_meas()
         self.update_meas()
         # Update alerts and faults
+        # TODO: Determine if we need to clear (clear_cuv_cov_faults) the Cell under and over voltage faults before updating it. It seems that once raised, they remain set.
+        #clear_cuv_cov_faults(ser=self.serial_con, id=self.id)
         self.update_alerts_and_faults()
         # Update thresholds reading
         self.update_secu_thr()
