@@ -7,6 +7,7 @@ VERBOSE = True
 SERIAL_BAUDRATE = 612500
 SERIAL_TIMEOUT = 0.05
 
+# TI BQ76 related constants (registers addresses, number of measurements...)
 BROADCAST_ADDR = 0x3F
 RESET_REG_ADDR = 0x3C
 RESET_MAGIC_CODE = 0xA5
@@ -26,6 +27,7 @@ FAULT_STATUS_ADDR = 0x21
 OV_CELLS_ADDR = 0x22
 UV_CELLS_ADDR = 0x23
 
+# Conversion table for Over Temperature Threshold Value TO Degrees Celcius
 OT_THR_TO_CELCIUS_LU_TABLE = {
     0: "dis",
     1: "40",
@@ -41,6 +43,7 @@ OT_THR_TO_CELCIUS_LU_TABLE = {
     11: "90",
 }
 
+# Conversion table for Degrees Celcius TO Over Temperature Threshold Value
 OT_THR_TO_CELCIUS_LU_TABLE_REVERSE = {
     40: 1,
     45: 2,
@@ -64,6 +67,7 @@ class CrcNok(Exception):
     def __init__(self, message):
         _print(message)
 
+# Connect to serial port identified by port_name
 def con_serial_port(port_name):
     serial_con = None
     try:
@@ -78,6 +82,7 @@ def con_serial_port(port_name):
             _print(f"ERROR: can't open {port_name}. Check its config (serial_interface.con_serial_port).")
     return serial_con
 
+# Disconnect from serial port identified by port_name
 def disco_serial_port(serial_con):
     try:
         serial_con.close()

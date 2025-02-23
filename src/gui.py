@@ -41,8 +41,8 @@ OT_THR_TABLE_IMG = ROOT_FOLDER / "img" / "ot_thr_meaning.png"
 LOG_FOLDER = ROOT_FOLDER / "log"
 LOG_FILE = LOG_FOLDER / "log.txt"
 
-def check_com_port_format(comport_string):
-    if re.match(COM_PORT_PATTERN, comport_string):
+def check_com_port_format(com_port_string):
+    if re.match(COM_PORT_PATTERN, com_port_string):
         return True
     else:
         return False
@@ -377,7 +377,7 @@ class BMSMonitorApp:
             self.set_ot1_thr_button.config(state=tk.DISABLED)
             self.set_ot2_thr_button.config(state=tk.DISABLED)
             self.reset_button.config(state=tk.DISABLED)
-            print("Is all locked ?: ", self.is_all_locked)
+            print("Is everything locked ?: ", self.is_all_locked)
         else:
             self.is_all_locked = False
             self.id_lock_checkbutton.config(state=tk.NORMAL)
@@ -392,7 +392,7 @@ class BMSMonitorApp:
                 self.set_ot2_thr_button.config(state=tk.NORMAL)
             if self.reset_lock.get()!=1:
                 self.reset_button.config(state=tk.NORMAL)
-            print("Is all locked ?: ", self.is_all_locked)
+            print("Is everything locked ?: ", self.is_all_locked)
 
     def lock_id(self):
         if self.global_lock.get() == 1:
@@ -582,7 +582,7 @@ class BMSMonitorApp:
             temp.config(text=meas_buff[7+i])
 
     def update_secu_thr(self):
-        #TODO: Display the information when security thresholds are disabled
+        # TODO: Display the information when security thresholds are disabled
         print("Update security thresholds")
         ov_thr = get_ov_thr(ser=self.serial_con, id=self.id)
         uv_thr = get_uv_thr(ser=self.serial_con, id=self.id)
