@@ -1,3 +1,4 @@
+from datetime import datetime
 import logging
 import os
 import re
@@ -38,8 +39,10 @@ ALERT_REG_IMG = ROOT_FOLDER / "img" / "alert_status_register.png"
 FAULT_REG_IMG = ROOT_FOLDER / "img" / "fault_status_register.png"
 OT_THR_TABLE_IMG = ROOT_FOLDER / "img" / "ot_thr_meaning.png"
 
-LOG_FOLDER = ROOT_FOLDER / "log"
-LOG_FILE = LOG_FOLDER / "log.txt"
+LOG_FILE_FOLDER = ROOT_FOLDER / "log"
+TIMESTAMP = datetime.now().strftime("%Y%m%d_%H%M%S")
+LOG_FILE_NAME = f"log_{TIMESTAMP}.txt"
+LOG_FILE_PATH = LOG_FILE_FOLDER / LOG_FILE_NAME
 
 def check_com_port_format(com_port_string):
     if re.match(COM_PORT_PATTERN, com_port_string):
@@ -109,11 +112,11 @@ class BMSMonitorApp:
         self.create_locks_frame(main)
 
         # Logging config
-        if not os.path.isdir(LOG_FOLDER):
-            os.mkdir(LOG_FOLDER)
+        if not os.path.isdir(LOG_FILE_FOLDER):
+            os.mkdir(LOG_FILE_FOLDER)
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(logging.DEBUG)
-        f_handler = logging.FileHandler(LOG_FILE)
+        f_handler = logging.FileHandler(LOG_FILE_PATH)
         f_format = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
         f_handler.setFormatter(f_format)
         self.logger.addHandler(f_handler)
